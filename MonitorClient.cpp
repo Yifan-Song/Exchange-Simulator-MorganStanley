@@ -4,6 +4,7 @@
 #include <boost/asio.hpp>
 #include <string>
 #include <time.h>
+#include <errors.h>
 using boost::asio::ip::tcp;
 
 std::string Read(std::string s, std::string aim)//用于返回fix协议中tag对应的值，参数值s为fix协议，aim为tag
@@ -105,7 +106,8 @@ void Transform(std::string item)//将接受到的信息翻译并输出
 	else if(item=="End"){}
 	else
 	{
-		cout << "\nUnknown situation.\n";
+		cout << "\nThe server has been shut down.\n";
+		system("pause");
 	}
 }
 
@@ -133,28 +135,38 @@ int main(int argc, char* argv[])
 		std::cout << "The market is closed now.\nOpentime:9:30AM-11:30AM && 1:00PM-3:30PM\n";//当时间不合法时直接退出
 		return 0;
 	}
-	std::string IPaddress;
-	std::cout << "Please enter the IP address:";//输入ip地址并连接
-	std::getline(std::cin, IPaddress);
-	boost::asio::io_service io_service;
-	tcp::resolver resolver(io_service);
-	tcp::resolver::query query(IPaddress, "9875");
-	tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
-	tcp::socket socket(io_service);
-	boost::asio::connect(socket, endpoint_iterator);
-	boost::system::error_code error;
-	std::array<char, 256> input_buffer;
-	
-	std::cout << "Monitoring...\n";
-
-	std::string message = "Monitor";
-	boost::asio::write(socket, boost::asio::buffer(message), error);
 	while (true)
 	{
-		std::size_t rsize = socket.read_some(
-			boost::asio::buffer(input_buffer), error);
-		std::string receivedMessage(input_buffer.data(), input_buffer.data() + rsize);//接受信息并转化后输出
-		Transform(receivedMessage);
+		try//此处的循环与try-catch用于检测用户输入的ip地址是否有效，若无效则继续输入
+		{
+			std::string IPaddress;
+			std::cout << "Please enter the IP address:";//输入ip地址并连接
+			std::getline(std::cin, IPaddress);
+			boost::asio::io_service io_service;
+			tcp::resolver resolver(io_service);
+			tcp::resolver::query query(IPaddress, "9875");
+			tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
+			tcp::socket socket(io_service);
+			boost::asio::connect(socket, endpoint_iterator);
+			boost::system::error_code error;
+			std::array<char, 256> input_buffer;
+
+			std::cout << "Monitoring...\n";
+
+			std::string message = "Monitor";
+			boost::asio::write(socket, boost::asio::buffer(message), error);
+			while (true)
+			{
+				std::size_t rsize = socket.read_some(
+					boost::asio::buffer(input_buffer), error);
+				std::string receivedMessage(input_buffer.data(), input_buffer.data() + rsize);//接受信息并转化后输出
+				Transform(receivedMessage);
+			}
+		}
+		catch (...)
+		{
+			std::cout << "Invalid IPadress.Try again.\n";
+		}
 	}
 	return 0;
 }

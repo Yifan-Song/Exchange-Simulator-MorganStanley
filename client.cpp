@@ -307,154 +307,174 @@ int main(int argc, char* argv[])
 		std::cout << "The market is closed now.\nOpentime:9:30AM-11:30AM && 1:00PM-3:30PM\n";//当时间不合法时直接退出
 		return 0;
 	}
-	std::string IPaddress;
-	std::cout << "Please enter the IP address:";//输入ip地址并连接
-	std::getline(std::cin, IPaddress);
-	boost::asio::io_service io_service;
-	tcp::resolver resolver(io_service);
-	tcp::resolver::query query(IPaddress, "9876");
-	tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
-	tcp::socket socket(io_service);
-	boost::asio::connect(socket, endpoint_iterator);
-	boost::system::error_code error;
-	std::array<char, 256> input_buffer;
-	std::size_t rsize = socket.read_some(
-		boost::asio::buffer(input_buffer), error);
-	std::string receivedMessage1(input_buffer.data(), input_buffer.data() + rsize);//此处用于读取等待监视客户端上线的信息
-	std::cout << receivedMessage1;
-	rsize = socket.read_some(
-		boost::asio::buffer(input_buffer), error);
-	std::string receivedMessage2(input_buffer.data(), input_buffer.data() + rsize);//此处用于读取准备完成的信息
-	std::cout << receivedMessage2;
 	while (true)
 	{
-		Fix.clear();//每一次循环后清空fix协议
-		Fix.str("");
-		while (true)
+		try//此处的循环与try-catch用于检测用户输入的ip地址是否有效，若无效则继续输入
 		{
-			std::cout << "Query or Deal?(Enter q for query, d for deal)\n";//先给用户查询信息或交易的选择
-			std::getline(std::cin, QueryOrDeal);
-			ToLowerString(QueryOrDeal);
-			if (QueryOrDeal != "q" && QueryOrDeal != "d")
-			{
-				std::cout << "Illegal input, try again.\n";
-				continue;
-			}
-			break;
-		}
-		if (QueryOrDeal == "q")
-		{
+			std::string IPaddress;
+			std::cout << "Please enter the IP address:";//输入ip地址并连接
+			std::getline(std::cin, IPaddress);
+			boost::asio::io_service io_service;
+			tcp::resolver resolver(io_service);
+			tcp::resolver::query query(IPaddress, "9876");
+			tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
+			tcp::socket socket(io_service);
+			boost::asio::connect(socket, endpoint_iterator);
+			boost::system::error_code error;
+			std::array<char, 256> input_buffer;
+			std::size_t rsize = socket.read_some(
+				boost::asio::buffer(input_buffer), error);
+			std::string receivedMessage1(input_buffer.data(), input_buffer.data() + rsize);//此处用于读取等待监视客户端上线的信息
+			std::cout << receivedMessage1;
+			rsize = socket.read_some(
+				boost::asio::buffer(input_buffer), error);
+			std::string receivedMessage2(input_buffer.data(), input_buffer.data() + rsize);//此处用于读取准备完成的信息
+			std::cout << receivedMessage2;
 			while (true)
 			{
-				std::cout << "Query the history or the orderbook?(Enter h for history, o for orderbook)\n";//若选择查询信息，给其查询交易历史或orderbook的选择
-				std::getline(std::cin, QueryStr);
-				ToLowerString(QueryStr);
-				if (QueryStr != "h" && QueryStr != "o")
-				{
-					std::cout << "Illegal input, try again.\n";
-					continue;
-				}
-				break;
-			}
-			if (QueryStr == "h")
-			{
-				ReadHistory();//输出交易历史
-				std::cout << "\n";
-				continue;
-			}
-			if (QueryStr == "o")
-			{
+				Fix.clear();//每一次循环后清空fix协议
+				Fix.str("");
 				while (true)
 				{
-					std::cout << "Please Enter the name of good you want to query:\n";//让用户输入要查询的货物名
-					std::getline(std::cin, QueryNameStr);
-					if (QueryNameStr == "")
+					std::cout << "Query or Deal?(Enter q for query, d for deal)\n";//先给用户查询信息或交易的选择
+					std::getline(std::cin, QueryOrDeal);
+					ToLowerString(QueryOrDeal);
+					if (QueryOrDeal != "q" && QueryOrDeal != "d")
 					{
 						std::cout << "Illegal input, try again.\n";
 						continue;
 					}
-					QueryName = "QueryName=";
-					QueryName += QueryNameStr;
-					QueryName += ";";
 					break;
 				}
-				Fix << QueryName;
-				boost::asio::write(socket, boost::asio::buffer(Fix.str()), error);//接受orderbook并输出
-				std::size_t rsize = socket.read_some(
-					boost::asio::buffer(input_buffer), error);
-				std::string s(input_buffer.data(), input_buffer.data() + rsize);
-				std::cout << s;
-			}
-		}
-		if (QueryOrDeal == "d")
-		{
-			while (true)
-			{
-				std::cout << "Create a new order or Cancel an old order?(Enter n for create, o for cancle)\n";//给用户建立新订单或取消旧订单的选择
-				std::getline(std::cin, MsgTypeStr);
-				ToLowerString(MsgTypeStr);
-				if (MsgTypeStr != "n" && MsgTypeStr != "o")
+				if (QueryOrDeal == "q")
 				{
-					std::cout << "Illegal input, try again.\n";
-					continue;
-				}
-				break;
-			}
-			Create();
-			Cancle();
-			Fix << "OriginAmount=";
-			Fix << Read(Fix.str(), "38");//这两个tag的建立是用于partialfill时区别原始数目与价格和成交数目与价格的
-			Fix << ";";
-			Fix << "OriginPrice=";
-			Fix << Read(Fix.str(), "44");
-			Fix << ";";
-			history.push_back(Fix.str());
-			boost::asio::write(socket, boost::asio::buffer(Fix.str()), error);
-			std::size_t rsize = socket.read_some(
-				boost::asio::buffer(input_buffer), error);
-			std::string receivedMessage(input_buffer.data(), input_buffer.data() + rsize);//接受信息并进行实时反馈（以下的代码即为输出实时反馈的）
-			history.push_back(receivedMessage);
-			if (Read(Fix.str(), "35") == "D")
-			{
-				if (receivedMessage.find("39=0") != receivedMessage.npos)std::cout << "Order created successfully.\n\n";
-				while (receivedMessage != "End")//这个循环是用于接受server在一个新订单发过去之后可能产生的几个fill信息的反馈的，end标志结束
-				{
-					std::size_t rsize = socket.read_some(
-						boost::asio::buffer(input_buffer), error);
-					std::string receivedMessage(input_buffer.data(), input_buffer.data() + rsize);
-					history.push_back(receivedMessage);
-					std::string Type;
-					if (Read(receivedMessage, "40") == "1")Type = "Buy";
-					else Type = "Sell";
-					if (Read(receivedMessage, "35") == "8"&&Read(receivedMessage, "39") == "1")//处理partialfill的情况
+					while (true)
 					{
-						std::stringstream tempStream;
-						int OriginAmount;
-						int DealedAmount;
-						int LeftAmount;
-						OriginAmount = StringToNumber(Read(receivedMessage, "OriginAmount"));
-						LeftAmount = StringToNumber(Read(receivedMessage, "38"));
-						DealedAmount = OriginAmount - LeftAmount;
-						std::cout << "\nOne of your Orders has been partially filled:\nOrderID:" + Read(receivedMessage, "11") + "\tOrderType:" + Type + "\tGoodName:" + Read(receivedMessage, "GoodName") + "\tDealedAmount:" << DealedAmount << "\tLeftAmount:" + Read(receivedMessage, "38") + "\tDealPrice:" + Read(receivedMessage, "44") + "\n";
-					}
-					else if (Read(receivedMessage, "35") == "8"&&Read(receivedMessage, "39") == "2")//处理fullyfill的情况
-					{
-						std::cout << "\nOne of your Orders has been fully filled:\nOrderID:" + Read(receivedMessage, "11") + "\tOrderType:" + Type + "\tGoodName:" + Read(receivedMessage, "GoodName") + "\tAmount:" + Read(receivedMessage, "OriginAmount") + "\tDealPrice:" + Read(receivedMessage, "44") + "\n";
-					}
-					else if(receivedMessage=="End")
-					{
+						std::cout << "Query the history or the orderbook?(Enter h for history, o for orderbook)\n";//若选择查询信息，给其查询交易历史或orderbook的选择
+						std::getline(std::cin, QueryStr);
+						ToLowerString(QueryStr);
+						if (QueryStr != "h" && QueryStr != "o")
+						{
+							std::cout << "Illegal input, try again.\n";
+							continue;
+						}
 						break;
 					}
+					if (QueryStr == "h")
+					{
+						ReadHistory();//输出交易历史
+						std::cout << "\n";
+						continue;
+					}
+					if (QueryStr == "o")
+					{
+						while (true)
+						{
+							std::cout << "Please Enter the name of good you want to query:\n";//让用户输入要查询的货物名
+							std::getline(std::cin, QueryNameStr);
+							if (QueryNameStr == "")
+							{
+								std::cout << "Illegal input, try again.\n";
+								continue;
+							}
+							QueryName = "QueryName=";
+							QueryName += QueryNameStr;
+							QueryName += ";";
+							break;
+						}
+						Fix << QueryName;
+						boost::asio::write(socket, boost::asio::buffer(Fix.str()), error);//接受orderbook并输出
+						std::size_t rsize = socket.read_some(
+							boost::asio::buffer(input_buffer), error);
+						std::string s(input_buffer.data(), input_buffer.data() + rsize);
+						std::cout << s;
+					}
+				}
+				if (QueryOrDeal == "d")
+				{
+					while (true)
+					{
+						std::cout << "Create a new order or Cancel an old order?(Enter n for create, o for cancle)\n";//给用户建立新订单或取消旧订单的选择
+						std::getline(std::cin, MsgTypeStr);
+						ToLowerString(MsgTypeStr);
+						if (MsgTypeStr != "n" && MsgTypeStr != "o")
+						{
+							std::cout << "Illegal input, try again.\n";
+							continue;
+						}
+						break;
+					}
+					Create();
+					Cancle();
+					Fix << "OriginAmount=";
+					Fix << Read(Fix.str(), "38");//这两个tag的建立是用于partialfill时区别原始数目与价格和成交数目与价格的
+					Fix << ";";
+					Fix << "OriginPrice=";
+					Fix << Read(Fix.str(), "44");
+					Fix << ";";
+					if (!isOpen())
+					{
+						std::cout << "The market is closed now.\nOpentime:9:30AM-11:30AM && 1:00PM-3:30PM\n";
+						system("pause");
+					}
+					history.push_back(Fix.str());
+					boost::asio::write(socket, boost::asio::buffer(Fix.str()), error);
+					std::size_t rsize = socket.read_some(
+						boost::asio::buffer(input_buffer), error);
+					std::string receivedMessage(input_buffer.data(), input_buffer.data() + rsize);//接受信息并进行实时反馈（以下的代码即为输出实时反馈的）
+					history.push_back(receivedMessage);
+					if (Read(Fix.str(), "35") == "D")
+					{
+						if (receivedMessage.find("39=0") != receivedMessage.npos)std::cout << "Order created successfully.\nOrderID:" + Read(Fix.str(), "11") + "\n\n";
+						while (receivedMessage != "End")//这个循环是用于接受server在一个新订单发过去之后可能产生的几个fill信息的反馈的，end标志结束
+						{
+							std::size_t rsize = socket.read_some(
+								boost::asio::buffer(input_buffer), error);
+							std::string receivedMessage(input_buffer.data(), input_buffer.data() + rsize);
+							history.push_back(receivedMessage);
+							std::string Type;
+							if (Read(receivedMessage, "40") == "1")Type = "Buy";
+							else Type = "Sell";
+							if (Read(receivedMessage, "35") == "8"&&Read(receivedMessage, "39") == "1")//处理partialfill的情况
+							{
+								std::stringstream tempStream;
+								int OriginAmount;
+								int DealedAmount;
+								int LeftAmount;
+								OriginAmount = StringToNumber(Read(receivedMessage, "OriginAmount"));
+								LeftAmount = StringToNumber(Read(receivedMessage, "38"));
+								DealedAmount = OriginAmount - LeftAmount;
+								std::cout << "\nOne of your Orders has been partially filled:\nOrderID:" + Read(receivedMessage, "11") + "\tOrderType:" + Type + "\tGoodName:" + Read(receivedMessage, "GoodName") + "\tDealedAmount:" << DealedAmount << "\tLeftAmount:" + Read(receivedMessage, "38") + "\tDealPrice:" + Read(receivedMessage, "44") + "\n";
+							}
+							else if (Read(receivedMessage, "35") == "8"&&Read(receivedMessage, "39") == "2")//处理fullyfill的情况
+							{
+								std::cout << "\nOne of your Orders has been fully filled:\nOrderID:" + Read(receivedMessage, "11") + "\tOrderType:" + Type + "\tGoodName:" + Read(receivedMessage, "GoodName") + "\tAmount:" + Read(receivedMessage, "OriginAmount") + "\tDealPrice:" + Read(receivedMessage, "44") + "\n";
+							}
+							else if (receivedMessage == "End")
+							{
+								break;
+							}
+							else
+							{
+								std::cout << "\nThe server has been shut down.\n";
+								system("pause");
+							}
+							std::cout << std::endl;
+						}
+					}
+					else if (receivedMessage.find("35=8") != receivedMessage.npos&&receivedMessage.find("39=4") != receivedMessage.npos&&receivedMessage.find("150=4") != receivedMessage.npos)std::cout << "Order cancelled successfully.\n\n";//处理取消订单成功的情况
+					else if (receivedMessage.find("35=9") != receivedMessage.npos&&receivedMessage.find("39=8") != receivedMessage.npos)std::cout << "The order can't be cancelled.(Doesn't exist or has been cancelled.)\n\n";//处理取消订单失败的情况
 					else
 					{
-						std::cout << "\nUnknown situation.\n";
+						std::cout << "\nThe server has been shut down.\n";
+						system("pause");
 					}
-					std::cout << std::endl;
 				}
 			}
-			else if (receivedMessage.find("35=8") != receivedMessage.npos&&receivedMessage.find("39=4") != receivedMessage.npos&&receivedMessage.find("150=4") != receivedMessage.npos)std::cout << "Order cancelled successfully.\n\n";//处理取消订单成功的情况
-			else if (receivedMessage.find("35=9") != receivedMessage.npos&&receivedMessage.find("39=8") != receivedMessage.npos)std::cout << "The order can't be cancelled.(Doesn't exist or has been cancelled.)\n\n";//处理取消订单失败的情况
-			else std::cout << "\nUnknown situation\n";
+		}
+		catch (...)
+		{
+			std::cout << "Invalid IPadress.Try again.\n";
 		}
 	}
 	return 0;

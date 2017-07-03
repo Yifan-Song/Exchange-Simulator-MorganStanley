@@ -360,7 +360,12 @@ int main()
 			std::string visitor(input_buffer.data(),
 				input_buffer.data() + input_size);
 			socket.remote_endpoint().address().to_string();
-
+			
+			if (!isOpen())
+			{
+				std::cout << "The market is closed now.\nOpentime:9:30AM-11:30AM && 1:00PM-3:30PM\n";//在交易时间外不接受新订单
+				system("pause");
+			}
 			boost::asio::write(socket1, boost::asio::buffer(visitor), ignored1);
 
 			if (visitor.find("QueryName") != visitor.npos)
